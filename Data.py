@@ -16,7 +16,7 @@ def open_image(image_name):
     image = Image.open(path)
     size = np.flip(image.size, 0)  # For some strange reason the data isn't ordered in the same way as the size says
     pixels = np.array(image.getdata(), 'uint8')
-    pixels = pixels.reshape(size)
+    # pixels = pixels.reshape(size)
     return pixels, size
 
 

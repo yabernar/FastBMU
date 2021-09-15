@@ -1,6 +1,11 @@
 import codecs
 import json
+
+import numpy
+import numpy as np
+
 from Data import *
+from ParallelSOM import ParallelSOM
 from Parameters import Variable, Parameters
 from SOM import SOM
 
@@ -40,7 +45,7 @@ class Execution:
         elif self.dataset["type"] == "Digits":
             self.data = spoken_digits("FSDD", 1000)
         elif self.dataset["type"] == "Image":
-            self.data = mosaic_image("Elijah.png", (10, 10))
+            self.data = mosaic_image("Elijah.png", [10, 10])
         else:
             print("Error : No dataset type specified !")
 
@@ -55,8 +60,9 @@ class Execution:
                                  "epochs_nbr": self.model["nb_epochs"],
                                  "topology": self.model["topology"],
                                  "bmu_search": self.model["bmu_search"]})
-        self.map = SOM(parameters)
+        self.map = ParallelSOM(parameters)
         self.map.run()
+        #self.map.run_parallel()
 
     def compute_metrics(self):
         self.metrics = self.map.compute_metrics()
@@ -72,6 +78,17 @@ if __name__ == '__main__':
     exec = Execution()
     exec.metadata = {"name": "test", "seed": 1}
     exec.dataset = {"type": "Square"}
-    exec.model = {"topology": "Hex", "bmu_search": "Fast", "nb_epochs": 10, "width": 32, "height": 32}
+    exec.model = {"topology": "Grid", "bmu_search": "Normal", "nb_epochs": 10, "width": 32, "height": 32}
     os.makedirs(os.path.join("Executions", "Test"), exist_ok=True)
     exec.full_simulation(os.path.join("Executions", "Test"))
+    numpy.set_printoptions(precision=2, linewidth=np.inf, threshold=np.inf, suppress=True)
+    print(exec.map.visited/np.max(exec.map.visited))
+    print(exec.metrics)
+    print(exec.map.cycle_count)
+    total = 0
+    for i in range(len(exec.map.cycle_count)):
+        total += i*exec.map.cycle_count[i]
+    print("Average cycle :", total/np.sum(exec.map.cycle_count), "Log cycle :", np.log2(np.prod(exec.map.neurons_nbr)))
+
+    #print(exec.map.distance_to_last_bmu)
+    #print(exec.map.distance_to_last_bmu/np.sum(exec.map.distance_to_last_bmu))

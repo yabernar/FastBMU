@@ -1,39 +1,59 @@
+import itertools
+
 import numpy as np
 
 from Common_Functions import *
 
-class Particle:
-    def __init__(self, start, vector, vector_id):
-        self.position = start
+class Parallel_Fast:
+    def __init__(self, som, vector, vector_id):
+        self.som = som
         self.vector = vector
         self.vector_id = vector_id
+        self.dist_memory = np.zeros(self.som.neurons_nbr, dtype=float)
+        self.positions = [(0, 0), (self.som.neurons_nbr[0]-1, 0), (0, self.som.neurons_nbr[1]-1), (self.som.neurons_nbr[0]-1, self.som.neurons_nbr[1]-1)]
+        self.best = [0, 0, 0, 0]
+        self.status = [True, True, True, True]
+
+        for i in range(len(self.positions)):
+            self.best[i] = quadratic_distance(self.som.neurons[self.positions[i]], self.vector)
+            self.dist_memory[self.positions[i]] = self.best[i]
 
     def update(self):
-        cont = True
-        bmu = start
-        best = quadratic_distance(self.neurons[bmu], vector)
-        self.dist_memory[bmu] = best
-        while cont:
-            new_bmu, new_best = self.search_smallest_neighbor(vector, bmu, best)
-            if new_bmu == bmu:  # There is no better neuron in the direct neighbourhood, so we go one step further
-                cont = False
-                if self.topology == "Hex":
-                    neighbors = self.return_all_neighbors_hex(bmu)
-                else:
-                    neighbors = self.return_all_neighbors(bmu)
-                for i in neighbors:
-                    neighbors_bmu, neighbors_best = self.search_smallest_neighbor(vector, i, np.inf)
-                    if neighbors_bmu != bmu: # A better BMU has been found in the neighbours, so we continue the descent
-                        best = neighbors_best
-                        bmu = neighbors_bmu
-                        cont = True
-                        break
-            else:
-                best = new_best
-                bmu = new_bmu
-        return bmu
+        for i in range(len(self.status)):
+            if self.status[i]:
+                res = self.particle_tick(self.positions[i], self.best[i])
+                self.positions[i] = res[0]
+                self.best[i] = res[1]
+                self.status[i] = res[2]
+        if np.sum(self.status) == 0:
+            i = np.argmin(self.best)
+            return self.positions[i]
+        else:
+            return False
 
-class SOM:
+    def particle_tick(self, position, best):
+        bmu = position
+        new_bmu, new_best = self.som.search_smallest_neighbor(self.vector, bmu, best)
+        if new_bmu == bmu:  # There is no better neuron in the direct neighbourhood, so we go one step further
+            cont = False
+            if self.som.topology == "Hex":
+                neighbors = self.som.return_all_neighbors_hex(bmu)
+            else:
+                neighbors = self.som.return_all_neighbors(bmu)
+            for i in neighbors:
+                neighbors_bmu, neighbors_best = self.som.search_smallest_neighbor(self.vector, i, np.inf)
+                if neighbors_bmu != bmu: # A better BMU has been found in the neighbours, so we continue the descent
+                    best = neighbors_best
+                    bmu = neighbors_bmu
+                    cont = True
+                    break
+        else:
+            cont = True
+            best = new_best
+            bmu = new_bmu
+        return bmu, best, cont
+
+class ParallelSOM:
     def __init__(self, parameters):
         # Parameters
         self.alpha = parameters["alpha"]
@@ -46,12 +66,14 @@ class SOM:
         self.metrics = {}
 
         # Measuring metrics
+        self.dist_memory = np.zeros(self.neurons_nbr)
         self.visited = np.zeros(self.neurons_nbr)
         self.last_bmu = np.full(self.data.shape[0], None)
         if self.topology == "Hex":
             self.distance_to_last_bmu = np.zeros(hexagonal_distance((0, 0), self.neurons_nbr))
         else:
             self.distance_to_last_bmu = np.zeros(manhattan_distance((0, 0), self.neurons_nbr))
+        self.cycle_count = np.zeros(np.prod(self.neurons_nbr))
 
         # Computing variables
         self.neurons = np.random.random(self.neurons_nbr + self.data.shape[1:])
@@ -62,6 +84,7 @@ class SOM:
         else:
             self.distance_vector = np.empty(manhattan_distance((0, 0), self.neurons_nbr))
         self.iteration = 0
+        self.epoch = 0
         self.max_iterations = self.epochs_nbr * self.data.shape[0]
 
     def winner(self, vector, vector_id=None):
@@ -75,6 +98,24 @@ class SOM:
         if vector_id is not None :
             if self.last_bmu[vector_id] is not None:
                 self.distance_to_last_bmu[manhattan_distance(bmu_index, self.last_bmu[vector_id])] += 1
+                order = []
+                for i in range(manhattan_distance((0, 0), self.neurons_nbr)):
+                    order.append([])
+                it = np.nditer(dist, flags=['multi_index'])
+                for i in it:
+                    order[manhattan_distance(self.last_bmu[vector_id], it.multi_index)].append(float(i))
+                order = np.asarray(list(itertools.chain.from_iterable(order)))
+                #cycle = 0
+                #while len(order) > 0:
+                #    cycle += 1
+                #    order = order[order < order[0]]
+                #self.cycle_count[cycle] += 1
+                order = order[order < order[0]]
+                if len(order) > 0:
+                    self.cycle_count[1+int(np.ceil(np.log2(len(order))))] += 1
+                else:
+                    self.cycle_count[1] +=1
+
             else:
                 self.last_bmu[vector_id] = bmu_index
 
@@ -205,10 +246,35 @@ class SOM:
         for i in range(self.data.shape[0]):
             self.run_iteration()
 
+    def run_parallel_epoch(self):
+        self.generate_random_list()
+        self.alpha.execute()
+        self.sigma.execute()
+        for i in range(len(self.distance_vector)):
+            self.distance_vector[i] = normalized_gaussian(i / (len(self.distance_vector) - 1), self.sigma.get())
+
+        search_list = []
+        while len(self.vector_list) > 0 or len(search_list) > 0:
+            if len(self.vector_list) > 0:
+                for i in range(4):
+                    if len(self.vector_list) > 0:
+                        search = Parallel_Fast(self, self.data[self.unique_random_vector()], self.current_vector_index)
+                        search_list.append(search)
+            for e in search_list:
+                bmu = e.update()
+                if bmu is not False:
+                    self.updating_weights(bmu, e.vector)
+                    search_list.remove(e)
+
     def run(self):
         for i in range(self.epochs_nbr):
             print("Epoch", i)
             self.run_epoch()
+
+    def run_parallel(self):
+        for i in range(self.epochs_nbr):
+            print("Epoch", i)
+            self.run_parallel_epoch()
 
     def updating_weights(self, bmu, vector):
         for i in np.ndindex(self.neurons_nbr):
