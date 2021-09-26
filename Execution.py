@@ -60,9 +60,12 @@ class Execution:
                                  "epochs_nbr": self.model["nb_epochs"],
                                  "topology": self.model["topology"],
                                  "bmu_search": self.model["bmu_search"]})
-        self.map = ParallelSOM(parameters)
-        self.map.run()
-        #self.map.run_parallel()
+        if self.model["bmu_search"] == "Parallel":
+            self.map = ParallelSOM(parameters)
+            self.map.run_parallel()
+        else:
+            self.map = SOM(parameters)
+            self.map.run()
 
     def compute_metrics(self):
         self.metrics = self.map.compute_metrics()
@@ -77,8 +80,8 @@ class Execution:
 if __name__ == '__main__':
     exec = Execution()
     exec.metadata = {"name": "test", "seed": 1}
-    exec.dataset = {"type": "Square"}
-    exec.model = {"topology": "Grid", "bmu_search": "Normal", "nb_epochs": 10, "width": 32, "height": 32}
+    exec.dataset = {"type": "Cube"}
+    exec.model = {"topology": "Grid", "bmu_search": "Fast", "nb_epochs": 10, "width": 32, "height": 32}
     os.makedirs(os.path.join("Executions", "Test"), exist_ok=True)
     exec.full_simulation(os.path.join("Executions", "Test"))
     numpy.set_printoptions(precision=2, linewidth=np.inf, threshold=np.inf, suppress=True)

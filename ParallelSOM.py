@@ -97,7 +97,10 @@ class ParallelSOM:
         # Calculating distance with previous BMU
         if vector_id is not None :
             if self.last_bmu[vector_id] is not None:
-                self.distance_to_last_bmu[manhattan_distance(bmu_index, self.last_bmu[vector_id])] += 1
+                if self.topology == "Hex":
+                    self.distance_to_last_bmu[hexagonal_distance(bmu_index, self.last_bmu[vector_id])] += 1
+                else:
+                    self.distance_to_last_bmu[manhattan_distance(bmu_index, self.last_bmu[vector_id])] += 1
                 order = []
                 for i in range(manhattan_distance((0, 0), self.neurons_nbr)):
                     order.append([])
@@ -138,7 +141,10 @@ class ParallelSOM:
         # Calculating distance with previous BMU
         if vector_id is not None :
             if self.last_bmu[vector_id] is not None:
-                self.distance_to_last_bmu[manhattan_distance(bmu, self.last_bmu[vector_id])] += 1
+                if self.topology == "Hex":
+                    self.distance_to_last_bmu[hexagonal_distance(bmu, self.last_bmu[vector_id])] += 1
+                else:
+                    self.distance_to_last_bmu[manhattan_distance(bmu, self.last_bmu[vector_id])] += 1
             else:
                 self.last_bmu[vector_id] = bmu
 
@@ -268,12 +274,12 @@ class ParallelSOM:
 
     def run(self):
         for i in range(self.epochs_nbr):
-            print("Epoch", i)
+            # print("Epoch", i)
             self.run_epoch()
 
     def run_parallel(self):
         for i in range(self.epochs_nbr):
-            print("Epoch", i)
+            # print("Epoch", i)
             self.run_parallel_epoch()
 
     def updating_weights(self, bmu, vector):
@@ -310,7 +316,7 @@ class ParallelSOM:
         return np.mean(error)
 
     def mean_square_quantization_error(self, winners=None):
-        if winners is not None:
+        if winners is None:
             winners = self.get_all_winners()
         error = np.zeros(winners.shape)
         for i in np.ndindex(winners.shape):
@@ -324,5 +330,5 @@ class ParallelSOM:
         self.metrics["MSDtN"] = self.mean_square_distance_to_neighbour()
         self.metrics["MSQE_S"] = self.mean_square_quantization_error(real_winners)
         self.metrics["MSQE_F"] = self.mean_square_quantization_error(fast_winners)
-        self.metrics["Mismatch"] = np.sum(real_winners == fast_winners) / np.prod(self.neurons_nbr)
+        self.metrics["Mismatch"] = np.sum(real_winners != fast_winners) / self.data.shape[0]
         return self.metrics

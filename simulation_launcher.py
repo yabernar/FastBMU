@@ -8,23 +8,23 @@ from Execution import Execution
 class SimulationRun:
     def __init__(self):
         self.all_runs = []
-        self.folder_path = os.path.join("Executions", "Paper_statistics")
+        self.folder_path = os.path.join("Executions", "PhD_statistics")
 
     def create(self):
         os.makedirs(self.folder_path, exist_ok=True)
-        datasets = ["Square", "Shape", "Cube"]
+        datasets = ["Square", "Colors", "Cube", "Image"]
         # datasets = ["Square", "Shape", "Cube", "Colors", "Digits", "Image"]
         topologies = ["Hex", "Grid"]
-        bmu_search = ["Fast", "Normal"]
+        bmu_search = ["Parallel", "Fast", "Normal"]
 
         for d in datasets:
             for t in topologies:
                 for b in bmu_search:
-                    for s in range(1):
+                    for s in range(0, 10):
                         exec = Execution()
                         exec.metadata = {"name": d+"_"+b+t+"_32x32n_20ep-"+str(s+1), "seed": s+1}
                         exec.dataset = {"type": d}
-                        exec.model = {"topology": t, "bmu_search": b, "nb_epochs": 20, "width": 32, "height": 32}
+                        exec.model = {"topology": t, "bmu_search": b, "nb_epochs": 10, "width": 32, "height": 32}
                         self.all_runs.append(exec)
 
     def save(self):
@@ -53,5 +53,7 @@ if __name__ == '__main__':
     if not os.path.exists(sr.folder_path):
         sr.create()
         sr.save()
+    #sr.create()
+    #sr.save()
     sr.open_folder(sr.folder_path)
-    sr.compute(7)
+    sr.compute(15)

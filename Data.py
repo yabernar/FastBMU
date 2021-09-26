@@ -23,6 +23,7 @@ def open_image(image_name):
 # Random generated 2D data in a shape defined by an image
 def shape(nbr_elements, image_name):
     pixels, size = open_image(image_name)
+    print(pixels.shape, size)
     data = []
     for i in range(nbr_elements):
         element = np.random.random(2)
